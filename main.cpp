@@ -1,4 +1,4 @@
-﻿#define Taster D2   
+﻿﻿#define Taster D2
 
 #include <SPI.h>                     // Einbinden der zentralen Grafik-Library   
 #include <TFT_eSPI.h>                // Einbinden der Library für die Hardware   
@@ -8,13 +8,13 @@ TFT_eSPI tft = TFT_eSPI();           // aufrufen der Libary für die Hardware
 const int maxx = 240;                // Größe des Displays   
 const int maxy = 320;
 
-const int maxbaelle = 3;             // maximale Anzahl der Bälle   
+const int maxbaelle = 5;             // maximale Anzahl der Bälle   
+int activebaelle = 3;
 
-
-const int ZielX = 25;                // Koordinaten Zielfeld   
-const int ZielY = 25;
-const int ZielBreite = 190;
-const int ZielHoehe = 270;
+int ZielX = 25;
+int ZielY = 25;
+int ZielBreite = 190;
+int ZielHoehe = 270;
 
 int geschwindigkeit = 25;           // Wartezeit zwischen den Aktualisierungsintervallen   
 int level = 1;                      //переменая левел увеличиваетсятна 1 
@@ -32,21 +32,25 @@ strukturBall Ball[maxbaelle];        // Array mit den Bällen wird angelegt
 
 // перенес void setup вниз чтобы вызвать там ZufallsBaelle();;  
 
-void ZufallsBaelle()                 //создает шарик 
+void InitBall(int i)
 {
-    Ball[0].d = 9;
-    Ball[1].d = 7;
-    Ball[2].d = 4;
-    for (int i = 0; i < maxbaelle; i++) {          // и = 0; не больше 3 и увеличивается на 1 (счетчик того, сколько условия которые в фор луп повторятся) 
-        // теперь шарик в любом случае будет в границах экрана  
-        Ball[i].x = random(Ball[i].d, maxx - Ball[i].d);   // случайня позиция по х и у 
-        Ball[i].y = random(Ball[i].d, maxy - Ball[i].d);
+    int ds[5] = { 9, 7, 4, 6, 5 };
+    Ball[i].d = ds[i];
 
-        Ball[i].gx = ballSpeed * (random(2) ? 1 : -1);      // направленте скоросьт по х и у; random 2 gives 0 or 2  решает направление 
-        Ball[i].gy = ballSpeed * (random(2) ? 1 : -1);
+    Ball[i].x = random(Ball[i].d, maxx - Ball[i].d);
+    Ball[i].y = random(Ball[i].d, maxy - Ball[i].d);
 
-        Ball[i].px = Ball[i].x;                 // текушая позиция  на экране;  шар "стирается" и не виден человеческому глазуб т потом он появляется снова  на новой позиции 
-        Ball[i].py = Ball[i].y;
+    Ball[i].gx = ballSpeed * (random(2) ? 1 : -1);
+    Ball[i].gy = ballSpeed * (random(2) ? 1 : -1);
+
+    Ball[i].px = (int)Ball[i].x;
+    Ball[i].py = (int)Ball[i].y;
+}
+
+void ZufallsBaelle()
+{
+    for (int i = 0; i < activebaelle; i++) {
+        InitBall(i);
     }
 }
 
@@ -56,7 +60,7 @@ void SpielfeldZeichnen() {
 
 // новая функция для обновления мячика  
 void UpdateBaelle() {
-    for (int i = 0; i < maxbaelle; i++) {        //  с каждим шарлм проимходит  
+    for (int i = 0; i < activebaelle; i++) {        //  с каждим шарлм проимходит  
 
         // стереть старый шарик 
         tft.fillCircle(Ball[i].px, Ball[i].py, Ball[i].d, TFT_BLACK);
@@ -79,17 +83,37 @@ void UpdateBaelle() {
         tft.fillCircle((int)Ball[i].x, (int)Ball[i].y, Ball[i].d, TFT_YELLOW);
     }
 }
-
-//void BaelleZeichnen() { 
-   // for (int i = 0; i < maxbaelle; i++) 
-   // { 
- //       tft.fillCircle((int)Ball[i].x, (int)Ball[i].y, Ball[i].d, TFT_YELLOW); 
-   // } 
-//} 
 // теперь функция чтобы проверить отсутствуют ли шарики в квадратике  
 
+void ShrinkField() 
+{
+    int dx = ZielBreite / 8;
+    int dy = ZielHoehe / 8;
+
+    ZielX += dx;
+    ZielY += dy;
+
+    ZielBreite -= (ZielBreite / 4);
+    ZielHoehe  -= (ZielHoehe / 4);
+}
+
+void AddBallIfPossible() {
+    if (activebaelle < maxbaelle) {
+        InitBall(activebaelle);
+        activebaelle++;
+    }
+}
+
+void ApplyLevelRules() {
+    if (level == 3)  ShrinkField();
+    if (level == 5)  AddBallIfPossible();
+    if (level == 7)  ShrinkField();
+    if (level == 9)  AddBallIfPossible();
+    if (level == 11) ShrinkField();
+}
+
 bool BallCheck() {           //   проверяет местоположение мяча; функция всегда видит его в квадрате  если его нет его нет 
-    for (int i = 0; i < maxbaelle; i++) {
+    for (int i = 0; i < activebaelle; i++) {
         if (Ball[i].x - Ball[i].d < ZielX) return false;
         if (Ball[i].x + Ball[i].d > ZielX + ZielBreite) return false;
         if (Ball[i].y - Ball[i].d < ZielY) return false;
@@ -116,11 +140,23 @@ void LevelUp()                  //  увеличение переменной л
 {
     level++;
     ballSpeed += 0.3;
-    for (int i = 0; i < maxbaelle; i++)
+    for (int i = 0; i < activebaelle; i++)
     {
         Ball[i].gx = ballSpeed * (Ball[i].gx >= 0 ? 1 : -1);
         Ball[i].gy = ballSpeed * (Ball[i].gy >= 0 ? 1 : -1);
     }
+    ApplyLevelRules();
+}
+
+void GameOver()
+{
+    level = 1;
+    ballSpeed = 3.0;
+    activebaelle = 3;
+    ZielBreite = 190;
+    ZielHoehe = 270;
+    ZielX = 25;
+    ZielY = 25;
 }
 
 void loop() {
@@ -136,7 +172,7 @@ void loop() {
             tft.setTextColor(TFT_WHITE, TFT_GREEN);
             tft.setTextSize(3);
             tft.setTextDatum(MC_DATUM);
-            tft.drawString("LEVEL UP!", maxx / 2, maxy / 2);
+            tft.drawString("LEVEL UP!", tft.width() / 2, tft.height() / 2);
 
             delay(2000);
 
@@ -149,9 +185,9 @@ void loop() {
             tft.setTextColor(TFT_WHITE, TFT_RED);
             tft.setTextSize(3);
             tft.setTextDatum(MC_DATUM);
-            tft.drawString("GAME OVER!", maxx / 2, maxy / 2);
+            tft.drawString("GAME OVER!", tft.width() / 2, tft.height() / 2);
             delay(1000);
-            ballSpeed = 3.0;
+            GameOver();
             RestartGame();
             SpielfeldZeichnen();
         }
